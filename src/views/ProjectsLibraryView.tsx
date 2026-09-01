@@ -33,6 +33,7 @@ interface ProjectsLibraryViewProps {
   onToggleFavoriteProject?: (id: string) => void;
   onDeleteProject?: (id: string) => void;
   onDeleteMaterial?: (id: string) => void;
+  onUpdateMaterial?: (id: string, changes: Partial<GeneratedMaterial>) => void;
   onNavigate: (view: string) => void;
 }
 
@@ -43,6 +44,7 @@ export const ProjectsLibraryView: React.FC<ProjectsLibraryViewProps> = ({
   onToggleFavoriteProject,
   onDeleteProject,
   onDeleteMaterial,
+  onUpdateMaterial,
   onNavigate
 }) => {
   const [activeTab, setActiveTab] = useState<'projects' | 'materials' | 'favorites'>('projects');
@@ -89,6 +91,16 @@ export const ProjectsLibraryView: React.FC<ProjectsLibraryViewProps> = ({
       onToggleFavoriteProject(proj.id);
       showToast(proj.isFavorite ? `Removido dos favoritos: ${proj.name}` : `⭐ Projeto favoritado: ${proj.name}`);
     }
+  };
+
+  const approveMaterial = (material: GeneratedMaterial, event?: React.MouseEvent) => {
+    event?.stopPropagation();
+    onUpdateMaterial?.(material.id, {
+      editorialStatus: 'Aprovado',
+      updatedAt: new Date().toISOString(),
+      version: (material.version || 1) + 1,
+    });
+    showToast(`Material aprovado: ${material.title}`);
   };
 
   const favoriteMaterials = savedMaterials.filter(m => m.isFavorite);
@@ -567,6 +579,9 @@ export const ProjectsLibraryView: React.FC<ProjectsLibraryViewProps> = ({
                     <span className="text-[10px] bg-[#10b981]/20 text-[#34d399] px-2 py-0.5 rounded font-bold font-mono">
                       {mat.type || mat.category || 'Texto'}
                     </span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${mat.editorialStatus === 'Aprovado' ? 'bg-[#10b981]/20 text-[#34d399]' : 'bg-[#fbbf24]/15 text-[#fbbf24]'}`}>
+                      {mat.editorialStatus || 'Rascunho'}
+                    </span>
                     {mat.isFavorite && (
                       <span className="text-[10px] bg-[#facc15]/20 text-[#facc15] px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
                         <Star className="w-2.5 h-2.5 fill-[#facc15]" />
@@ -616,6 +631,17 @@ export const ProjectsLibraryView: React.FC<ProjectsLibraryViewProps> = ({
                     {copiedId === mat.id ? <Check className="w-3.5 h-3.5 text-[#34d399]" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copiedId === mat.id ? 'Copiado!' : 'Copiar'}</span>
                   </button>
+
+                  {mat.editorialStatus !== 'Aprovado' && onUpdateMaterial && (
+                    <button
+                      onClick={(event) => approveMaterial(mat, event)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#10b981]/15 text-xs font-semibold text-[#34d399] hover:bg-[#10b981]/25 border border-[#10b981]/30 transition-all cursor-pointer"
+                      title="Aprovar material após revisão"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Aprovar</span>
+                    </button>
+                  )}
 
                   {onDeleteMaterial && (
                     <button
@@ -771,5 +797,4 @@ export const ProjectsLibraryView: React.FC<ProjectsLibraryViewProps> = ({
     </div>
   );
 };
-
 
