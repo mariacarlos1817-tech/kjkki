@@ -1,370 +1,107 @@
-import React, { useState } from 'react';
-import { 
-  MessageSquare, 
-  Copy, 
-  Check, 
-  Send, 
-  PhoneCall, 
-  UserCheck, 
-  ShieldCheck, 
-  Clock, 
-  Sparkles, 
-  Layers,
-  ExternalLink,
-  DollarSign,
-  HelpCircle,
-  Zap
-} from 'lucide-react';
-import confetti from 'canvas-confetti';
-import { Product, BrandKit } from '../types';
+import React, { useMemo, useState } from 'react';
+import { AlertCircle, Check, Copy, ExternalLink, MessageCircle, Phone, Send, Sparkles } from 'lucide-react';
+import { BrandKit, Product } from '../types';
 
 interface WhatsAppSalesViewProps {
   selectedProduct: Product;
   brandKit: BrandKit;
 }
 
-export const WhatsAppSalesView: React.FC<WhatsAppSalesViewProps> = ({
-  selectedProduct,
-  brandKit
-}) => {
-  const [activeTab, setActiveTab] = useState<'seller' | 'catalog' | 'quick-answers' | 'followup'>('seller');
-  const [selectedSituation, setSelectedSituation] = useState<string>('preco');
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [customPhone, setCustomPhone] = useState<string>('');
+type ScriptKey = 'inicial' | 'preco' | 'modalidade' | 'certificado' | 'pensar' | 'fechamento';
 
-  const situations = [
-    {
-      id: 'preco',
-      title: 'Cliente perguntou o preço',
-      scenario: 'Lead quer saber o valor do curso',
-      script: `Olá! Tudo bem? 🚗\n\nO curso de *${selectedProduct.name}* (${selectedProduct.workloadHours} horas) está com uma condição super especial na ${brandKit.name}!\n\nInvestimento:\nDe: ~R$ ${selectedProduct.price ? selectedProduct.price.toFixed(2) : '349,00'}~\n*Por apenas:* R$ ${selectedProduct.promoPrice ? selectedProduct.promoPrice.toFixed(2) : '249,90'} à vista\nou em *${selectedProduct.installments || '12x no cartão'}* sem burocracia!\n\n✅ 100% online com início imediato\n✅ Certificado oficial e homologado\n✅ Suporte durante todo o curso\n\nQuer que eu reserve a sua vaga com esse valor promocional agora?`
+const safeText = (value: unknown, fallback: string) => {
+  if (typeof value !== 'string') return fallback;
+  const normalized = value.trim();
+  return normalized && !['undefined', 'null', 'nan'].includes(normalized.toLowerCase()) ? normalized : fallback;
+};
+
+const formatCurrency = (value?: number) => typeof value === 'number'
+  ? value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  : 'informação pendente';
+
+const cleanPhone = (value: string) => value.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+
+export const WhatsAppSalesView: React.FC<WhatsAppSalesViewProps> = ({ selectedProduct, brandKit }) => {
+  const [tab, setTab] = useState<'scripts' | 'followup'>('scripts');
+  const [scriptKey, setScriptKey] = useState<ScriptKey>('inicial');
+  const [leadName, setLeadName] = useState('');
+  const [leadPhone, setLeadPhone] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
+
+  const course = safeText(selectedProduct.name, 'curso');
+  const company = safeText(brandKit.tradingName || brandKit.companyName, 'nossa equipe');
+  const price = selectedProduct.promoPrice ?? selectedProduct.price;
+  const purchaseUrl = safeText(selectedProduct.purchaseUrl || brandKit.website, 'link ainda não informado');
+  const legalReview = selectedProduct.legalStatus !== 'APROVADO';
+
+  const scripts = useMemo<Record<ScriptKey, { title: string; description: string; content: string }>>(() => ({
+    inicial: {
+      title: 'Lead novo',
+      description: 'Primeiro contato consultivo',
+      content: `Olá${leadName ? `, ${leadName}` : ''}! Tudo bem?\n\nSou da ${company}. Vi seu interesse no *${course}*. Posso te explicar de forma rápida como funciona, para quem é e quais são os próximos passos?\n\nSe preferir, me diga qual é sua principal dúvida para eu te orientar.`,
     },
-    {
-      id: 'online',
-      title: 'Cliente perguntou se é online',
-      scenario: 'Dúvida se precisa ir presencialmente',
-      script: `Sim, 100% online! 📲\n\nVocê faz o curso de *${selectedProduct.name}* direto do seu celular, computador ou tablet, nos horários que forem melhores para você (a plataforma fica disponível 24 horas por dia).\n\nAssim que você conclui as aulas, seu certificado é emitido com total validade e homologação nacional.\n\nFica muito mais prático para você não perder tempo de trabalho! Posso te enviar o link de matrícula?`
+    preco: {
+      title: 'Pergunta sobre preço',
+      description: 'Resposta clara sem pressão',
+      content: `Claro${leadName ? `, ${leadName}` : ''}. Para o *${course}*, a condição cadastrada no momento é *${formatCurrency(price)}*.\n\nTambém vale confirmar as formas de pagamento e se a oferta ainda se aplica ao seu perfil. Quer que eu detalhe essas informações?`,
     },
-    {
-      id: 'certificado',
-      title: 'Dúvida sobre certificado e DETRAN',
-      scenario: 'Segurança jurídica e validade',
-      script: `Com certeza! A ${brandKit.name} atua desde 2015 com credenciamento e homologação nos órgãos competentes (${selectedProduct.relatedRegulatoryBodies.join(', ')}).\n\nO seu certificado de *${selectedProduct.name}* (${selectedProduct.workloadHours}h) possui:\n📄 Validade nacional e chave de autenticidade\n🏛️ Emissão em conformidade com as resoluções vigentes\n🛡️ Segurança total para seu currículo e contratação\n\nVocê pode se matricular com total tranquilidade. Vamos começar?`
+    modalidade: {
+      title: 'Dúvida sobre modalidade',
+      description: 'Explica o formato com transparência',
+      content: `O *${course}* está cadastrado na modalidade *${safeText(selectedProduct.modality, 'informação pendente')}*. A carga horária informada é de *${safeText(String(selectedProduct.workloadHours), 'informação pendente')}*.\n\nAntes da matrícula, posso confirmar para você os requisitos, o prazo e como é o acesso.`,
     },
-    {
-      id: 'caro',
-      title: 'Cliente achou caro / pediu desconto',
-      scenario: 'Objeção de valor e negociação',
-      script: `Eu compreendo perfeitamente seu ponto! Mas olha que interessante: o curso de *${selectedProduct.name}* não é um gasto, é a chave para você concorrer às melhores vagas e salários na área de ${selectedProduct.relatedProfession || 'transporte e segurança'}.\n\nHoje, dividindo em *${selectedProduct.installments || '12 parcelas'}*, custa menos que um cafezinho por dia para ter a sua qualificação oficial.\n\nE além do curso completo, você ainda conta com nossa garantia de satisfação de ${selectedProduct.guaranteeDays || 7} dias. Quer garantir sua inscrição com início hoje?`
+    certificado: {
+      title: 'Certificado e requisitos',
+      description: 'Sem afirmações não verificadas',
+      content: `Sobre certificado e requisitos do *${course}*: a informação cadastrada é *${safeText(selectedProduct.certification, 'informação pendente')}*.\n\nPara te passar uma orientação correta, vou confirmar os critérios aplicáveis, os órgãos relacionados e a documentação necessária antes da matrícula.`,
     },
-    {
-      id: 'pensar',
-      title: 'Cliente falou que vai pensar',
-      scenario: 'Evitar que o lead esfrie',
-      script: `Perfeito! Entendo que você queira avaliar com calma.\n\nSó queria te avisar que o valor promocional de *R$ ${selectedProduct.promoPrice ? selectedProduct.promoPrice.toFixed(2) : '249,90'}* é válido para o lote de vagas desta semana.\n\nPara não perder essa condição, eu consigo segurar o seu desconto até hoje no fim da tarde. Posso deixar pré-reservado no seu nome?`
+    pensar: {
+      title: '“Vou pensar”',
+      description: 'Follow-up respeitoso',
+      content: `Perfeito${leadName ? `, ${leadName}` : ''}. Faz sentido avaliar com calma.\n\nSe ajudar, posso te deixar um resumo objetivo do *${course}* com modalidade, requisitos, investimento e canal oficial de atendimento. Quando quiser retomar, fico à disposição.`,
     },
-    {
-      id: 'hoje',
-      title: 'Cliente quer começar hoje',
-      scenario: 'Fechamento rápido e link de pagamento',
-      script: `Excelente decisão! 🚀\n\nO processo é super rápido:\n1. Você faz sua matrícula agora mesmo pelo link seguro;\n2. Assim que o pagamento confirmar (no Pix ou Cartão a liberação é imediata), você recebe seu login no WhatsApp e e-mail;\n3. Já pode acessar as aulas na hora e iniciar sua capacitação!\n\nSegue o link oficial para matrícula: ${brandKit.website}\n\nSe preferir, posso gerar a chave Pix diretamente por aqui. Como fica melhor para você?`
-    }
+    fechamento: {
+      title: 'Próximo passo',
+      description: 'Encaminhamento com validação',
+      content: `Ótimo${leadName ? `, ${leadName}` : ''}. Antes de avançar, vou confirmar com você se o *${course}* atende ao que procura e se os dados da oferta estão corretos.\n\nLink cadastrado: ${purchaseUrl}\n\nSe preferir, posso acompanhar pelo canal oficial e ajudar com as dúvidas restantes.`,
+    },
+  }), [leadName, company, course, price, selectedProduct, purchaseUrl]);
+
+  const current = scripts[scriptKey];
+  const followUps = [
+    `Olá${leadName ? `, ${leadName}` : ''}! Passando para saber se ficou alguma dúvida sobre o *${course}*. Se quiser, posso resumir modalidade, requisitos e oferta cadastrada.`,
+    `Oi${leadName ? `, ${leadName}` : ''}! Estou por aqui caso queira retomar a conversa sobre o *${course}*. Sem compromisso: posso responder apenas à sua principal dúvida.`,
+    `Olá${leadName ? `, ${leadName}` : ''}! Caso o *${course}* ainda esteja nos seus planos, posso confirmar as informações atualizadas antes de você decidir.`,
   ];
 
-  const currentSituation = situations.find(s => s.id === selectedSituation) || situations[0];
-
-  const handleCopy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+  const copy = async (content: string) => {
+    await navigator.clipboard.writeText(content);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
   };
 
-  const handleOpenWhatsApp = (text: string) => {
-    const encoded = encodeURIComponent(text);
-    const cleanPhone = customPhone.replace(/\D/g, '');
-    const url = cleanPhone 
-      ? `https://wa.me/55${cleanPhone}?text=${encoded}`
-      : `https://api.whatsapp.com/send?text=${encoded}`;
-    window.open(url, '_blank');
+  const openWhatsApp = (content: string) => {
+    const phone = cleanPhone(leadPhone);
+    if (phone.length < 10 || phone.length > 11) {
+      setPhoneError('Informe DDD + número do lead para abrir uma conversa direcionada.');
+      return;
+    }
+    setPhoneError('');
+    window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(content)}`, '_blank', 'noopener,noreferrer');
   };
-
-  const catalogText = `🔥 *CATÁLOGO OFICIAL — ${selectedProduct.name.toUpperCase()}* 🔥\n\n` +
-    `*Modalidade:* ${selectedProduct.modality}\n` +
-    `*Carga Horária:* ${selectedProduct.workloadHours} Horas\n` +
-    `*Prazo de Conclusão:* ${selectedProduct.completionDeadline}\n` +
-    `*Certificação:* ${selectedProduct.certification}\n\n` +
-    `📌 *O QUE VOCÊ VAI APRENDER:*\n` +
-    selectedProduct.syllabusModules.map(m => `• ${m.title}`).join('\n') + `\n\n` +
-    `🎯 *BENEFÍCIOS EXCLUSIVOS:*\n` +
-    selectedProduct.secondaryBenefits.map(b => `✓ ${b}`).join('\n') + `\n\n` +
-    `💰 *VALOR PROMOCIONAL:*\n` +
-    `De ~R$ ${selectedProduct.price ? selectedProduct.price.toFixed(2) : '349,00'}~ por apenas *R$ ${selectedProduct.promoPrice ? selectedProduct.promoPrice.toFixed(2) : '249,90'}*\n` +
-    `Ou em até *${selectedProduct.installments || '12x no cartão'}*\n\n` +
-    `📲 *MATRÍCULA IMEDIATA:*\n` +
-    `Fale com a ${brandKit.name}: ${brandKit.contactPhone}\n` +
-    `Site oficial: ${brandKit.website}`;
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="text-xs font-semibold text-[#f2ca50] uppercase tracking-wider mb-1">
-            WhatsApp Sales Studio
-          </div>
-          <h1 className="text-2xl lg:text-3xl font-extrabold text-[#e5e2e1] font-heading">
-            Central de Vendas WhatsApp
-          </h1>
-          <p className="text-xs text-[#a09885] mt-1">
-            Modo Vendedor, quebra de objeções técnicas, catálogo diagramado e respostas rápidas para o curso ativo.
-          </p>
-        </div>
-      </div>
+      <header><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6ee7b7]">WhatsApp Sales</p><h1 className="mt-1 font-heading text-2xl font-bold text-[#f0fdf4] sm:text-3xl">Central de conversa e follow-up</h1><p className="mt-2 max-w-2xl text-sm text-[#94a3b8]">Mensagens consultivas, editáveis e orientadas pelos dados do curso - sem promessas que não foram confirmadas.</p></header>
 
-      {/* Tabs */}
-      <div className="flex border-b border-[#242424] bg-[#121212] rounded-xl overflow-x-auto scrollbar-hide p-1 gap-1">
-        <button
-          onClick={() => setActiveTab('seller')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-            activeTab === 'seller'
-              ? 'bg-[#d4af37]/20 text-[#f2ca50] border border-[#d4af37]/40'
-              : 'text-[#857d6e] hover:text-[#e5e2e1]'
-          }`}
-        >
-          <UserCheck className="w-4 h-4" />
-          Modo Vendedor (Simulador de Objeções)
-        </button>
-        <button
-          onClick={() => setActiveTab('catalog')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-            activeTab === 'catalog'
-              ? 'bg-[#d4af37]/20 text-[#f2ca50] border border-[#d4af37]/40'
-              : 'text-[#857d6e] hover:text-[#e5e2e1]'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          Catálogo Formatado WhatsApp
-        </button>
-        <button
-          onClick={() => setActiveTab('quick-answers')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-            activeTab === 'quick-answers'
-              ? 'bg-[#d4af37]/20 text-[#f2ca50] border border-[#d4af37]/40'
-              : 'text-[#857d6e] hover:text-[#e5e2e1]'
-          }`}
-        >
-          <Zap className="w-4 h-4" />
-          Respostas Rápidas (FAQ Técnico)
-        </button>
-        <button
-          onClick={() => setActiveTab('followup')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-            activeTab === 'followup'
-              ? 'bg-[#d4af37]/20 text-[#f2ca50] border border-[#d4af37]/40'
-              : 'text-[#857d6e] hover:text-[#e5e2e1]'
-          }`}
-        >
-          <Clock className="w-4 h-4" />
-          Sequência de Follow-up
-        </button>
-      </div>
+      {legalReview && <section className="flex gap-3 rounded-xl border border-[#5b4315] bg-[#1b170d] p-4"><AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-[#fbbf24]" /><p className="text-xs leading-relaxed text-[#fef3c7]">O status legal do curso exige revisão. As mensagens de certificado e requisitos foram marcadas para confirmação antes do envio.</p></section>}
 
-      {/* Tab 1: Modo Vendedor */}
-      {activeTab === 'seller' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Situation Selector (4 cols) */}
-          <div className="lg:col-span-5 space-y-3">
-            <label className="text-xs font-bold text-[#f2ca50] uppercase tracking-wider block">
-              Qual a situação do atendimento?
-            </label>
-            <div className="space-y-2">
-              {situations.map((sit) => (
-                <button
-                  key={sit.id}
-                  onClick={() => setSelectedSituation(sit.id)}
-                  className={`w-full text-left p-3.5 rounded-xl border transition-all cursor-pointer ${
-                    selectedSituation === sit.id
-                      ? 'bg-[#211d13] border-[#d4af37] text-[#f2ca50] shadow-md shadow-[#d4af37]/5'
-                      : 'bg-[#141414] border-[#262626] text-[#a09885] hover:text-[#e5e2e1] hover:bg-[#1a1a1a]'
-                  }`}
-                >
-                  <div className="text-xs font-bold font-heading">{sit.title}</div>
-                  <div className="text-[11px] text-[#857d6e] mt-0.5">{sit.scenario}</div>
-                </button>
-              ))}
-            </div>
-          </div>
+      <section className="studio-card rounded-xl p-5"><div className="grid gap-4 md:grid-cols-2"><label className="text-xs font-semibold text-[#d1fae5]">Nome do lead (opcional)<input value={leadName} onChange={(event) => setLeadName(event.target.value)} placeholder="Ex.: Ana" className="studio-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-xs" /></label><label className="text-xs font-semibold text-[#d1fae5]">Telefone do lead<input value={leadPhone} onChange={(event) => { setLeadPhone(event.target.value); setPhoneError(''); }} placeholder="DDD + número" inputMode="numeric" className="studio-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-xs" /></label></div>{phoneError && <p className="mt-2 text-xs text-[#fca5a5]">{phoneError}</p>}</section>
 
-          {/* Script Output & WhatsApp Direct Launcher (7 cols) */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="studio-card rounded-xl p-5 space-y-4">
-              <div className="flex items-center justify-between border-b border-[#242424] pb-3">
-                <div>
-                  <h3 className="text-xs font-bold text-[#f2ca50] uppercase tracking-wider">
-                    {currentSituation.title}
-                  </h3>
-                  <p className="text-[11px] text-[#857d6e]">Script de alta conversão</p>
-                </div>
+      <div className="flex gap-2 border-b border-[#1c2b24] pb-3"><button onClick={() => setTab('scripts')} className={`rounded-lg px-3 py-2 text-xs font-bold ${tab === 'scripts' ? 'bg-[#10b981]/15 text-[#6ee7b7]' : 'text-[#94a3b8] hover:bg-[#121c17]'}`}>Scripts de conversa</button><button onClick={() => setTab('followup')} className={`rounded-lg px-3 py-2 text-xs font-bold ${tab === 'followup' ? 'bg-[#10b981]/15 text-[#6ee7b7]' : 'text-[#94a3b8] hover:bg-[#121c17]'}`}>Follow-up</button></div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleCopy(currentSituation.script, 'seller-script')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#242424] text-xs font-bold text-[#f2ca50] hover:bg-[#333] transition-all cursor-pointer"
-                  >
-                    {copiedKey === 'seller-script' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedKey === 'seller-script' ? 'Copiado!' : 'Copiar'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Message Preview in WhatsApp balloon style */}
-              <div className="bg-[#0b141a] p-4 rounded-xl border border-[#1f2c34] relative">
-                <div className="bg-[#005c4b] text-[#e9edef] text-xs p-3.5 rounded-lg max-w-xl whitespace-pre-wrap font-sans leading-relaxed shadow-sm">
-                  {currentSituation.script}
-                </div>
-                <div className="text-[10px] text-[#8696a0] text-right mt-1 font-mono">
-                  {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} • Entregue
-                </div>
-              </div>
-
-              {/* Direct Send to Phone */}
-              <div className="pt-2 border-t border-[#242424] flex flex-col sm:flex-row items-center gap-3">
-                <input
-                  type="text"
-                  placeholder="DDD + Telefone do Cliente (Ex: 11999999999)"
-                  value={customPhone}
-                  onChange={(e) => setCustomPhone(e.target.value)}
-                  className="w-full sm:flex-1 rounded-lg studio-input px-3.5 py-2 text-xs text-[#e5e2e1]"
-                />
-                <button
-                  onClick={() => handleOpenWhatsApp(currentSituation.script)}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2 rounded-lg bg-[#25D366] hover:bg-[#20bd5a] text-[#0A0A0A] font-bold text-xs shadow-md transition-all cursor-pointer whitespace-nowrap"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  Abrir no WhatsApp
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 2: Catálogo Formatado */}
-      {activeTab === 'catalog' && (
-        <div className="studio-card rounded-xl p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold text-[#e5e2e1] font-heading">
-                Catálogo Estruturado para o WhatsApp
-              </h2>
-              <p className="text-xs text-[#857d6e]">
-                Formatado com negritos, marcadores e estrutura pronta para catálogo de mensagens.
-              </p>
-            </div>
-            <button
-              onClick={() => handleCopy(catalogText, 'catalog-full')}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg gold-gradient-bg text-[#0A0A0A] font-bold text-xs cursor-pointer"
-            >
-              {copiedKey === 'catalog-full' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              {copiedKey === 'catalog-full' ? 'Copiado!' : 'Copiar Catálogo'}
-            </button>
-          </div>
-
-          <pre className="bg-[#0d0d0d] p-5 rounded-xl text-xs text-[#d0c5af] font-mono whitespace-pre-wrap border border-[#222] leading-relaxed max-h-96 overflow-y-auto">
-            {catalogText}
-          </pre>
-        </div>
-      )}
-
-      {/* Tab 3: Respostas Rápidas */}
-      {activeTab === 'quick-answers' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[
-            {
-              q: 'Qual o prazo de conclusão?',
-              a: `O curso de ${selectedProduct.name} é ${selectedProduct.completionDeadline}. Como é 100% online, você dita o seu próprio ritmo de estudo!`
-            },
-            {
-              q: 'O certificado é aceito em todo o Brasil?',
-              a: `Sim! O certificado é emitido pela ${brandKit.name}, empresa credenciada e atuante desde 2015. Válido em todo o território nacional.`
-            },
-            {
-              q: 'Como posso pagar?',
-              a: `Aceitamos Pix com liberação imediata, Cartão de Crédito em até ${selectedProduct.installments || '12 vezes'} e Boleto bancário.`
-            },
-            {
-              q: 'Preciso ter computador para estudar?',
-              a: `Não! Nossa plataforma é 100% compatível com celulares, tablets e notebooks. Você pode estudar de onde estiver.`
-            },
-            {
-              q: 'Tem suporte para tirar dúvidas?',
-              a: `Sim! Você conta com nossa equipe de suporte pedagógico e técnico durante todo o período de acesso ao curso.`
-            },
-            {
-              q: 'Como recebo meu acesso após o pagamento?',
-              a: `O acesso é liberado imediatamente no seu WhatsApp e e-mail assim que o pagamento é aprovado!`
-            }
-          ].map((item, idx) => (
-            <div key={idx} className="studio-card rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-[#f2ca50]">{item.q}</h4>
-                <button
-                  onClick={() => handleCopy(item.a, `quick-${idx}`)}
-                  className="p-1 rounded bg-[#222] text-[#857d6e] hover:text-[#f2ca50] cursor-pointer"
-                >
-                  {copiedKey === `quick-${idx}` ? <Check className="w-3.5 h-3.5 text-[#7ee787]" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-              <p className="text-xs text-[#a09885] leading-relaxed">{item.a}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Tab 4: Follow-up */}
-      {activeTab === 'followup' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {[
-            {
-              title: 'Follow-up 24 Horas',
-              badge: 'Dia seguinte',
-              msg: `Oi! Passando para saber se ficou com alguma dúvida sobre o curso de *${selectedProduct.name}*. Conseguiu dar uma olhada nas condições? Estou por aqui para te ajudar a iniciar!`
-            },
-            {
-              title: 'Follow-up 3 Dias',
-              badge: 'Urgência',
-              msg: `Olá! Lembra que conversamos sobre o curso de *${selectedProduct.name}*? Nossas vagas com valor promocional de R$ ${selectedProduct.promoPrice ? selectedProduct.promoPrice.toFixed(2) : '249,90'} encerram em breve. Quer que eu garanta a sua?`
-            },
-            {
-              title: 'Follow-up 7 Dias',
-              badge: 'Última chamada',
-              msg: `Olá! Passando para te desejar uma excelente semana. Caso ainda tenha interesse em turbinar seu currículo com *${selectedProduct.name}*, me dá um alô por aqui que verifico uma condição especial para você!`
-            }
-          ].map((f, i) => (
-            <div key={i} className="studio-card rounded-xl p-5 space-y-3 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-bold text-[#e5e2e1] font-heading">{f.title}</h3>
-                  <span className="text-[10px] bg-[#222] text-[#f2ca50] px-2 py-0.5 rounded font-mono font-bold">{f.badge}</span>
-                </div>
-                <pre className="bg-[#0d0d0d] p-3.5 rounded-lg text-xs text-[#d0c5af] font-mono whitespace-pre-wrap border border-[#222] leading-relaxed">
-                  {f.msg}
-                </pre>
-              </div>
-
-              <div className="pt-3 border-t border-[#222] flex items-center justify-between">
-                <button
-                  onClick={() => handleCopy(f.msg, `f-${i}`)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-[#f2ca50] hover:underline cursor-pointer"
-                >
-                  {copiedKey === `f-${i}` ? <Check className="w-3.5 h-3.5 text-[#7ee787]" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copiedKey === `f-${i}` ? 'Copiado!' : 'Copiar Mensagem'}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {tab === 'scripts' ? <div className="grid gap-5 lg:grid-cols-[0.8fr_1.4fr]"><section className="space-y-2">{(Object.keys(scripts) as ScriptKey[]).map((key) => <button key={key} onClick={() => setScriptKey(key)} className={`w-full rounded-xl border p-4 text-left transition ${scriptKey === key ? 'border-[#34d399]/60 bg-[#10251a]' : 'border-[#1c2b24] bg-[#0e1512] hover:bg-[#121c17]'}`}><p className="text-xs font-bold text-[#e5f7ed]">{scripts[key].title}</p><p className="mt-1 text-[11px] text-[#94a3b8]">{scripts[key].description}</p></button>)}</section><section className="studio-card rounded-xl p-5"><div className="flex items-start justify-between gap-3 border-b border-[#1c2b24] pb-4"><div><p className="text-xs font-semibold uppercase tracking-wider text-[#6ee7b7]">{current.title}</p><p className="mt-1 text-xs text-[#94a3b8]">{current.description}</p></div><MessageCircle className="h-5 w-5 text-[#6ee7b7]" /></div><textarea value={current.content} readOnly rows={13} className="mt-4 w-full resize-none rounded-lg border border-[#1f2c34] bg-[#0b141a] p-4 text-xs leading-relaxed text-[#e9edef] outline-none" /><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => copy(current.content)} className="inline-flex items-center gap-2 rounded-lg border border-[#2d6948] px-4 py-2.5 text-xs font-bold text-[#6ee7b7] hover:bg-[#12241b]">{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{copied ? 'Copiado' : 'Copiar'}</button><button onClick={() => openWhatsApp(current.content)} className="inline-flex items-center gap-2 rounded-lg bg-[#25d366] px-4 py-2.5 text-xs font-bold text-[#042c1b] hover:bg-[#32e178]"><Send className="h-4 w-4" />Abrir no WhatsApp</button></div></section></div> : <section className="grid gap-4 md:grid-cols-3">{followUps.map((content, index) => <article key={index} className="studio-card rounded-xl p-5"><div className="flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-wider text-[#6ee7b7]">{['24 horas', '3 dias', '7 dias'][index]}</span><Sparkles className="h-4 w-4 text-[#6ee7b7]" /></div><p className="mt-4 whitespace-pre-wrap text-xs leading-relaxed text-[#d1fae5]">{content}</p><div className="mt-5 flex gap-2"><button onClick={() => copy(content)} className="rounded-lg border border-[#2d6948] px-3 py-2 text-xs font-bold text-[#6ee7b7]">Copiar</button><button onClick={() => openWhatsApp(content)} className="rounded-lg bg-[#25d366] px-3 py-2 text-xs font-bold text-[#042c1b]"><Phone className="h-3.5 w-3.5" /></button></div></article>)}</section>}
     </div>
   );
 };
