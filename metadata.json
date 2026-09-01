@@ -1,0 +1,6 @@
+{
+  "name": "Next Studio Marketing Inteligente",
+  "description": "Plataforma Inteligente de Marketing & Vendas NexMarketing - Geração automatizada de materiais, prompts com editor de imagens, catálogos, anúncios e copies de alta conversão.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
