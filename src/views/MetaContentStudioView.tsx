@@ -1,322 +1,160 @@
-import React, { useState } from 'react';
-import { 
-  Megaphone, 
-  Sparkles, 
-  Copy, 
-  Check, 
-  Layers, 
-  SplitSquareVertical, 
-  Share2, 
-  Target, 
-  Eye,
-  Sliders,
-  DollarSign,
-  Grid
-} from 'lucide-react';
-import confetti from 'canvas-confetti';
-import { Product, BrandKit, AdObjective, AdAngle, AdVariation } from '../types';
-import { AIGeneratorService } from '../services/aiGenerator';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Check, ClipboardCheck, Copy, FileText, Megaphone, Plus, ShieldAlert, Target } from 'lucide-react';
+import { BrandKit, Campaign, GeneratedMaterial, Product } from '../types';
 
 interface MetaContentStudioViewProps {
   selectedProduct: Product;
   brandKit: BrandKit;
+  campaigns: Campaign[];
+  onSaveCampaign: (campaign: Campaign) => void;
+  onSaveMaterial: (material: GeneratedMaterial) => void;
 }
+
+const safeText = (value: unknown, fallback: string) => {
+  if (typeof value !== 'string') return fallback;
+  const normalized = value.trim();
+  return normalized && !['undefined', 'null', 'nan'].includes(normalized.toLowerCase()) ? normalized : fallback;
+};
+
+const price = (value?: number) => typeof value === 'number'
+  ? value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  : 'Informação pendente';
 
 export const MetaContentStudioView: React.FC<MetaContentStudioViewProps> = ({
   selectedProduct,
-  brandKit
+  brandKit,
+  campaigns,
+  onSaveCampaign,
+  onSaveMaterial,
 }) => {
-  const [activeTab, setActiveTab] = useState<'single' | '10vars' | 'abtest' | 'carousel'>('single');
-  const [objective, setObjective] = useState<AdObjective>('Venda Direta');
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [campaignName, setCampaignName] = useState(`Campanha - ${safeText(selectedProduct.name, 'curso ativo')}`);
+  const [objective, setObjective] = useState('Mensagens no WhatsApp');
+  const [audience, setAudience] = useState(safeText(selectedProduct.targetAudience, 'Informação pendente'));
+  const [angle, setAngle] = useState('Benefício');
+  const [hypothesis, setHypothesis] = useState('Uma mensagem clara sobre o benefício principal aumenta conversas qualificadas.');
+  const [utmContent, setUtmContent] = useState('criativo-01');
+  const [copied, setCopied] = useState(false);
+  const [generated, setGenerated] = useState(false);
 
-  // Generate single ad
-  const singleAd = React.useMemo(() => {
-    return AIGeneratorService.generateMetaAd(selectedProduct, brandKit, { objective });
-  }, [selectedProduct, objective, brandKit]);
+  useEffect(() => {
+    setCampaignName(`Campanha - ${safeText(selectedProduct.name, 'curso ativo')}`);
+    setAudience(safeText(selectedProduct.targetAudience, 'Informação pendente'));
+    setGenerated(false);
+  }, [selectedProduct.id, selectedProduct.name, selectedProduct.targetAudience]);
 
-  // Generate 10 variations
-  const adVariations = React.useMemo(() => {
-    return AIGeneratorService.generateAdVariations(selectedProduct, brandKit);
-  }, [selectedProduct, brandKit]);
+  const campaign = useMemo<Campaign>(() => ({
+    id: `campaign-${selectedProduct.id}-${campaignName.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/(^-|-$)/g, '') || 'nova'}`,
+    name: safeText(campaignName, `Campanha - ${safeText(selectedProduct.name, 'curso ativo')}`),
+    productId: selectedProduct.id,
+    productName: selectedProduct.name,
+    objective,
+    targetAudience: safeText(audience, 'Informação pendente'),
+    offer: selectedProduct.promoPrice ? price(selectedProduct.promoPrice) : price(selectedProduct.price),
+    startDate: new Date().toISOString().slice(0, 10),
+    channel: 'Meta Ads',
+    tone: 'Profissional',
+    materialsCount: generated ? 1 : 0,
+    status: 'Rascunho',
+    angle,
+    hypothesis: safeText(hypothesis, 'Informação pendente'),
+    utm: {
+      source: 'meta',
+      medium: 'paid_social',
+      campaign: safeText(campaignName, 'campanha').toLowerCase().replace(/[^a-z0-9]+/gi, '-'),
+      content: safeText(utmContent, 'criativo-01'),
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    version: 1,
+  }), [selectedProduct, campaignName, objective, audience, angle, hypothesis, utmContent, generated]);
 
-  // Generate carousel
-  const carouselSlides = React.useMemo(() => {
-    return AIGeneratorService.generateCarouselSlides(selectedProduct, brandKit);
-  }, [selectedProduct, brandKit]);
+  const packageText = useMemo(() => {
+    const course = safeText(selectedProduct.name, 'curso');
+    const benefit = safeText(selectedProduct.primaryBenefit, 'qualificação para o seu objetivo profissional');
+    const pain = safeText(selectedProduct.primaryPainPoint, 'encontrar a formação adequada');
+    const offer = selectedProduct.promoPrice ? price(selectedProduct.promoPrice) : price(selectedProduct.price);
+    const cta = objective === 'Mensagens no WhatsApp' ? 'Falar com um consultor no WhatsApp' : 'Conhecer a oferta';
+    const officialChannel = safeText(brandKit.whatsapp || brandKit.phone, 'canal oficial não informado');
+    const utmQuery = `utm_source=${campaign.utm?.source}&utm_medium=${campaign.utm?.medium}&utm_campaign=${campaign.utm?.campaign}&utm_content=${campaign.utm?.content}`;
 
-  const handleCopy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+    return `PACOTE DE CAMPANHA - RASCUNHO\n\nCurso: ${course}\nObjetivo: ${objective}\nPúblico: ${safeText(audience, 'Informação pendente')}\nÂngulo: ${angle}\nHipótese: ${safeText(hypothesis, 'Informação pendente')}\n\nHOOKS\n1. Procurando uma formação em ${course} que faça sentido para sua rotina?\n2. Entenda como ${course} pode apoiar quem busca ${benefit}.\n3. Antes de decidir, confira as informações do curso e tire suas dúvidas com um consultor.\n4. Uma alternativa para quem quer avançar com clareza e orientação.\n5. Veja se ${course} é adequado para o seu momento profissional.\n\nTEXTO PRINCIPAL\nSe você busca ${benefit}, o ${course} pode ser uma alternativa a avaliar. A proposta é explicar como funciona, para quem é e quais informações precisam ser confirmadas antes da matrícula. Fale com a equipe para receber orientação sobre modalidade, requisitos e oferta disponível.\n\nHEADLINE\n${course}: confira se é para você\n\nDESCRIÇÃO\nInformações claras, orientação comercial e próximos passos pelo canal oficial.\n\nCTA\n${cta}\n\nOFERTA CADASTRADA\n${offer}\n\nCANAL OFICIAL\n${officialChannel}\n\nUTMs\n${utmQuery}\n\nCHECKLIST DE REVISÃO\n[ ] Oferta, preço e parcelamento conferidos\n[ ] Público e ângulo coerentes com o curso\n[ ] Claims legais/comerciais revisados\n[ ] Link de matrícula e telefone validados\n[ ] Criativo e copy aprovados antes da publicação`;
+  }, [selectedProduct, brandKit, campaign, objective, audience, angle, hypothesis]);
+
+  const needsLegalReview = selectedProduct.legalStatus !== 'APROVADO';
+  const missingCommercialInfo = !selectedProduct.purchaseUrl || !selectedProduct.whatsappNumber;
+
+  const saveCampaign = () => {
+    onSaveCampaign(campaign);
+  };
+
+  const generatePackage = () => {
+    const material: GeneratedMaterial = {
+      id: `material-${Date.now()}`,
+      title: `Pacote Meta - ${safeText(campaign.name, 'Campanha')}`,
+      category: 'Publicidade',
+      type: 'Pacote de campanha Meta',
+      productId: selectedProduct.id,
+      productName: selectedProduct.name,
+      content: packageText,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      editorialStatus: 'Rascunho',
+      version: 1,
+      source: 'ai',
+      campaignId: campaign.id,
+      isFavorite: false,
+      tags: ['Meta Ads', angle, objective],
+    };
+    onSaveCampaign({ ...campaign, materialsCount: 1, updatedAt: new Date().toISOString() });
+    onSaveMaterial(material);
+    setGenerated(true);
+  };
+
+  const copyPackage = async () => {
+    await navigator.clipboard.writeText(packageText);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
   };
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <div className="text-xs font-semibold text-[#f2ca50] uppercase tracking-wider mb-1">
-            Meta Content & Ads Studio
-          </div>
-          <h1 className="text-2xl lg:text-3xl font-extrabold text-[#e5e2e1] font-heading">
-            Facebook & Instagram Ads Studio
-          </h1>
-          <p className="text-xs text-[#a09885] mt-1">
-            Produza anúncios de alto ROAS, testes A/B, 10 variações estratégicas e carrosséis com dados homologados.
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6ee7b7]">Campanhas Meta</p>
+          <h1 className="mt-1 font-heading text-2xl font-bold text-[#f0fdf4] sm:text-3xl">Workspace de campanha</h1>
+          <p className="mt-2 max-w-2xl text-sm text-[#94a3b8]">Monte um briefing completo, gere um pacote em rascunho e envie para revisão antes de publicar.</p>
         </div>
+        <button onClick={saveCampaign} className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#2d6948] bg-[#0d3822] px-4 py-2.5 text-xs font-bold text-[#6ee7b7] hover:bg-[#124d2f]"><Plus className="h-4 w-4" />Salvar campanha</button>
+      </header>
+
+      {(needsLegalReview || missingCommercialInfo) && (
+        <section className="flex gap-3 rounded-xl border border-[#5b4315] bg-[#1b170d] p-4">
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-[#fbbf24]" />
+          <div><h2 className="text-sm font-bold text-[#fef3c7]">Revisão obrigatória antes da publicação</h2><p className="mt-1 text-xs leading-relaxed text-[#d6c58e]">{needsLegalReview ? 'O status legal do curso exige revisão. ' : ''}{missingCommercialInfo ? 'Telefone ou link de matrícula ainda precisam ser validados. ' : ''}O pacote será salvo como rascunho.</p></div>
+        </section>
+      )}
+
+      <div className="grid gap-5 lg:grid-cols-[0.95fr_1.35fr]">
+        <section className="studio-card rounded-xl p-5">
+          <div className="flex items-center gap-2"><Target className="h-4 w-4 text-[#6ee7b7]" /><h2 className="text-sm font-bold text-[#f0fdf4]">Briefing da campanha</h2></div>
+          <div className="mt-5 space-y-4">
+            <label className="block text-xs font-semibold text-[#d1fae5]">Nome da campanha<input value={campaignName} onChange={(event) => setCampaignName(event.target.value)} className="studio-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-xs" /></label>
+            <label className="block text-xs font-semibold text-[#d1fae5]">Objetivo<select value={objective} onChange={(event) => setObjective(event.target.value)} className="studio-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-xs"><option>Mensagens no WhatsApp</option><option>Captação de lead</option><option>Venda direta</option><option>Remarketing</option></select></label>
+            <label className="block text-xs font-semibold text-[#d1fae5]">Público<input value={audience} onChange={(event) => setAudience(event.target.value)} className="studio-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-xs" /></label>
+            <label className="block text-xs font-semibold text-[#d1fae5]">Ângulo<select value={angle} onChange={(event) => setAngle(event.target.value)} className="studio-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-xs"><option>Benefício</option><option>Dor</option><option>Carreira</option><option>Agilidade</option><option>Segurança</option><option>Autoridade</option><option>Oferta</option></select></label>
+            <label className="block text-xs font-semibold text-[#d1fae5]">Hipótese de teste<textarea value={hypothesis} onChange={(event) => setHypothesis(event.target.value)} rows={3} className="studio-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-xs" /></label>
+            <label className="block text-xs font-semibold text-[#d1fae5]">UTM content<input value={utmContent} onChange={(event) => setUtmContent(event.target.value)} className="studio-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-xs" /></label>
+          </div>
+        </section>
+
+        <section className="studio-card rounded-xl p-5">
+          <div className="flex flex-col gap-3 border-b border-[#1c2b24] pb-4 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-wider text-[#6ee7b7]">Pacote de campanha</p><h2 className="mt-1 text-lg font-bold text-[#f0fdf4]">{safeText(selectedProduct.name, 'Curso ativo')}</h2><p className="mt-1 text-xs text-[#94a3b8]">Versão 1 · Rascunho · fonte: IA</p></div><span className="inline-flex w-fit items-center gap-1 rounded-full bg-[#fbbf24]/15 px-2.5 py-1 text-[10px] font-bold text-[#fbbf24]">Requer revisão</span></div>
+          <pre className="mt-4 max-h-[540px] overflow-y-auto whitespace-pre-wrap rounded-lg border border-[#1c2b24] bg-[#080d0b] p-4 font-mono text-xs leading-relaxed text-[#d1fae5]">{packageText}</pre>
+          <div className="mt-4 flex flex-wrap gap-2"><button onClick={generatePackage} className="emerald-gradient-bg inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold text-[#062d1b] hover:brightness-110"><Megaphone className="h-4 w-4" />{generated ? 'Atualizar pacote na biblioteca' : 'Gerar pacote em rascunho'}</button><button onClick={copyPackage} className="inline-flex items-center gap-2 rounded-lg border border-[#2d6948] px-4 py-2.5 text-xs font-bold text-[#6ee7b7] hover:bg-[#12241b]">{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{copied ? 'Copiado' : 'Copiar pacote'}</button></div>
+        </section>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-[#242424] bg-[#121212] rounded-xl overflow-x-auto scrollbar-hide p-1 gap-1">
-        <button
-          onClick={() => setActiveTab('single')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-            activeTab === 'single'
-              ? 'bg-[#d4af37]/20 text-[#f2ca50] border border-[#d4af37]/40'
-              : 'text-[#857d6e] hover:text-[#e5e2e1]'
-          }`}
-        >
-          <Megaphone className="w-4 h-4" />
-          Gerador de Anúncio Individual
-        </button>
-        <button
-          onClick={() => setActiveTab('10vars')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-            activeTab === '10vars'
-              ? 'bg-[#d4af37]/20 text-[#f2ca50] border border-[#d4af37]/40'
-              : 'text-[#857d6e] hover:text-[#e5e2e1]'
-          }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          10 Variações de Anúncio (Multi-Ângulos)
-        </button>
-        <button
-          onClick={() => setActiveTab('abtest')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-            activeTab === 'abtest'
-              ? 'bg-[#d4af37]/20 text-[#f2ca50] border border-[#d4af37]/40'
-              : 'text-[#857d6e] hover:text-[#e5e2e1]'
-          }`}
-        >
-          <SplitSquareVertical className="w-4 h-4" />
-          Teste A/B Comparativo
-        </button>
-        <button
-          onClick={() => setActiveTab('carousel')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-            activeTab === 'carousel'
-              ? 'bg-[#d4af37]/20 text-[#f2ca50] border border-[#d4af37]/40'
-              : 'text-[#857d6e] hover:text-[#e5e2e1]'
-          }`}
-        >
-          <Grid className="w-4 h-4" />
-          Carrossel de 8 Slides
-        </button>
-      </div>
-
-      {/* Tab 1: Single Ad Generator */}
-      {activeTab === 'single' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Controls */}
-          <div className="lg:col-span-5 space-y-4">
-            <div className="studio-card rounded-xl p-5 space-y-3">
-              <label className="text-xs font-bold text-[#f2ca50] uppercase tracking-wider block">
-                Objetivo da Campanha no Meta Ads
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  'Venda Direta',
-                  'Mensagem WhatsApp',
-                  'Captação de Lead',
-                  'Matrícula Imediata',
-                  'Reconhecimento',
-                  'Remarketing',
-                  'Promoção Relâmpago'
-                ].map((obj) => (
-                  <button
-                    key={obj}
-                    onClick={() => setObjective(obj as AdObjective)}
-                    className={`py-2 px-3 rounded-lg text-xs font-semibold text-center transition-all cursor-pointer truncate ${
-                      objective === obj
-                        ? 'bg-[#d4af37]/25 text-[#f2ca50] border border-[#d4af37]/40'
-                        : 'bg-[#171717] text-[#857d6e] hover:text-[#e5e2e1] border border-[#262626]'
-                    }`}
-                  >
-                    {obj}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="studio-card rounded-xl p-5 space-y-2 text-xs text-[#a09885]">
-              <div className="font-bold text-[#f2ca50]">💡 Dica de Tráfego:</div>
-              <p>
-                Anúncios no Meta Ads com público de motoristas e operadores convertem 42% mais quando o Hook inicial traz a dor direta da exigência do curso no currículo.
-              </p>
-            </div>
-          </div>
-
-          {/* Ad Mockup Card (Meta Feed Style) */}
-          <div className="lg:col-span-7">
-            <div className="studio-card rounded-xl p-5 space-y-4">
-              <div className="flex items-center justify-between border-b border-[#242424] pb-3">
-                <span className="text-xs font-bold text-[#f2ca50] uppercase tracking-wider">
-                  Prévia do Anúncio (Feed Instagram / Facebook)
-                </span>
-                <button
-                  onClick={() => handleCopy(`${singleAd.headline}\n\n${singleAd.primaryText}\n\nCTA: ${singleAd.cta}`, 'single-ad')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#242424] text-xs font-bold text-[#f2ca50] hover:bg-[#333] cursor-pointer"
-                >
-                  {copiedKey === 'single-ad' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copiedKey === 'single-ad' ? 'Copiado!' : 'Copiar Anúncio'}
-                </button>
-              </div>
-
-              {/* Feed Card Simulation */}
-              <div className="bg-[#121212] border border-[#2d2d2d] rounded-xl overflow-hidden shadow-lg max-w-lg mx-auto">
-                {/* Meta Header */}
-                <div className="p-3.5 flex items-center justify-between border-b border-[#222]">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full gold-gradient-bg flex items-center justify-center font-bold text-[#0A0A0A] text-xs">
-                      P
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-[#e5e2e1]">{brandKit.name}</div>
-                      <div className="text-[10px] text-[#857d6e]">Patrocinado • 🌐</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Primary Text */}
-                <div className="p-3.5 text-xs text-[#e5e2e1] whitespace-pre-wrap leading-relaxed">
-                  <p className="font-bold text-[#f2ca50] mb-2">{singleAd.hook}</p>
-                  {singleAd.primaryText}
-                </div>
-
-                {/* Image Preview */}
-                <div className="relative h-60 w-full bg-[#0d0d0d]">
-                  <img
-                    src={selectedProduct.coverImage}
-                    alt={selectedProduct.name}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute bottom-2 left-2 bg-[#0A0A0A]/80 backdrop-blur-md px-2 py-1 rounded text-[10px] text-[#f2ca50] font-mono">
-                    {selectedProduct.workloadHours}h • {selectedProduct.modality}
-                  </div>
-                </div>
-
-                {/* Footer Bar */}
-                <div className="p-3.5 bg-[#181818] border-t border-[#222] flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <div className="text-[10px] text-[#857d6e] uppercase tracking-wider font-mono">
-                      {brandKit.website.replace('https://', '')}
-                    </div>
-                    <div className="text-xs font-bold text-[#e5e2e1]">{singleAd.headline}</div>
-                  </div>
-
-                  <button className="px-4 py-2 rounded-lg gold-gradient-bg text-[#0A0A0A] font-bold text-xs shadow-sm">
-                    {singleAd.cta}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 2: 10 Ad Variations */}
-      {activeTab === '10vars' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-[#e5e2e1] font-heading">
-              10 Ângulos Estratégicos de Anúncio
-            </h2>
-            <button
-              onClick={() => handleCopy(adVariations.map((a, i) => `[${i+1}. ${a.angle}]\nHeadline: ${a.headline}\nHook: ${a.hook}\n${a.primaryText}\nCTA: ${a.cta}`).join('\n\n---\n\n'), 'all-10')}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#222] text-xs font-bold text-[#f2ca50] hover:bg-[#333] cursor-pointer"
-            >
-              {copiedKey === 'all-10' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              Copiar Todas as 10 Variações
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {adVariations.map((ad, idx) => (
-              <div key={idx} className="studio-card rounded-xl p-5 space-y-3 flex flex-col justify-between">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#d4af37]/20 text-[#f2ca50] border border-[#d4af37]/30">
-                      {idx + 1}. Ângulo: {ad.angle}
-                    </span>
-                    <button
-                      onClick={() => handleCopy(`${ad.headline}\n\n${ad.hook}\n\n${ad.primaryText}\n\nCTA: ${ad.cta}`, `v-${idx}`)}
-                      className="p-1 rounded bg-[#222] text-[#857d6e] hover:text-[#f2ca50] cursor-pointer"
-                    >
-                      {copiedKey === `v-${idx}` ? <Check className="w-3.5 h-3.5 text-[#7ee787]" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-
-                  <h3 className="text-xs font-bold text-[#e5e2e1] font-heading">{ad.headline}</h3>
-                  <div className="text-xs text-[#f2ca50] italic">"{ad.hook}"</div>
-                  <p className="text-xs text-[#a09885] leading-relaxed whitespace-pre-wrap">{ad.primaryText}</p>
-                </div>
-
-                <div className="pt-2 border-t border-[#222] flex items-center justify-between text-xs">
-                  <span className="text-[#857d6e]">CTA:</span>
-                  <span className="text-[#f2ca50] font-bold">{ad.cta}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Tab 3: A/B Test */}
-      {activeTab === 'abtest' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[
-            { tag: 'Versão A (Foco em Dor / Medo de Perder Vagas)', angle: 'Dor', headline: 'Não perca mais vagas de emprego!', hook: 'Quantas oportunidades você já perdeu por não ter este curso?' },
-            { tag: 'Versão B (Foco em Benefício / Facilidade EAD)', angle: 'Benefício', headline: 'Curso 100% online no seu celular!', hook: 'Estude nos seus horários livres e pegue seu certificado rápido.' },
-            { tag: 'Versão C (Foco em Oferta & Promoção)', angle: 'Oferta', headline: `De ~R$ 349~ por R$ ${selectedProduct.promoPrice?.toFixed(2) || '249,90'}!`, hook: 'Lote promocional de matrículas aberto por tempo limitado.' }
-          ].map((test, i) => (
-            <div key={i} className="studio-card rounded-xl p-5 space-y-3">
-              <div className="text-xs font-bold text-[#f2ca50] border-b border-[#242424] pb-2">
-                {test.tag}
-              </div>
-              <div className="space-y-2 text-xs">
-                <div><strong className="text-[#e5e2e1]">Headline:</strong> {test.headline}</div>
-                <div><strong className="text-[#e5e2e1]">Hook:</strong> <span className="italic text-[#d0c5af]">"{test.hook}"</span></div>
-                <div className="text-[#857d6e] pt-2 border-t border-[#222]">
-                  Ideal para testar no Meta Ads com público frio (Interesses em Transporte, CNH e Logística).
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Tab 4: Carousel */}
-      {activeTab === 'carousel' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {carouselSlides.map((slide) => (
-            <div key={slide.slide} className="studio-card rounded-xl p-4 space-y-2.5 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="font-bold text-[#f2ca50]">Slide {slide.slide}/8</span>
-                  <span className="text-[10px] bg-[#222] text-[#857d6e] px-2 py-0.5 rounded uppercase font-bold">{slide.type}</span>
-                </div>
-                <h4 className="text-xs font-bold text-[#e5e2e1]">{slide.title}</h4>
-                <p className="text-xs text-[#a09885] mt-1 leading-relaxed">{slide.content}</p>
-              </div>
-              <div className="pt-2 border-t border-[#222] text-[11px] text-[#f2ca50] italic">
-                "{slide.subtext}"
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <section className="studio-card rounded-xl p-5"><div className="flex items-center gap-2"><ClipboardCheck className="h-4 w-4 text-[#6ee7b7]" /><h2 className="text-sm font-bold text-[#f0fdf4]">Campanhas salvas</h2></div>{campaigns.length ? <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{campaigns.slice(0, 6).map((item) => <article key={item.id} className="rounded-lg border border-[#1c2b24] bg-[#0b110e] p-4"><p className="text-xs font-bold text-[#e5f7ed]">{safeText(item.name, 'Campanha sem nome')}</p><p className="mt-1 text-[11px] text-[#94a3b8]">{safeText(item.objective, 'Objetivo pendente')} · {safeText(item.angle, 'Ângulo pendente')}</p><div className="mt-3 flex items-center justify-between"><span className="text-[10px] text-[#64748b]">{item.materialsCount || 0} material(is)</span><span className="rounded-full bg-[#fbbf24]/15 px-2 py-1 text-[10px] font-bold text-[#fbbf24]">{item.status || 'Rascunho'}</span></div></article>)}</div> : <div className="mt-4 rounded-lg border border-dashed border-[#2a4033] px-4 py-6 text-center text-xs text-[#94a3b8]"><FileText className="mx-auto h-5 w-5 text-[#6ee7b7]" /><p className="mt-2">Salve o briefing para começar a biblioteca de campanhas.</p></div>}</section>
     </div>
   );
 };
