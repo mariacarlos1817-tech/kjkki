@@ -194,7 +194,14 @@ export interface GeneratedMaterial {
   createdAt: string;
   isFavorite: boolean;
   tags: string[];
+  editorialStatus?: EditorialStatus;
+  updatedAt?: string;
+  version?: number;
+  source?: 'manual' | 'ai' | 'import';
+  campaignId?: string;
 }
+
+export type EditorialStatus = 'Rascunho' | 'Em revisão' | 'Aprovado' | 'Publicado' | 'Arquivado';
 
 export interface Project {
   id: string;
@@ -223,6 +230,20 @@ export interface Campaign {
   channel: string;
   tone: ToneOfVoice;
   materialsCount: number;
+  status?: EditorialStatus;
+  angle?: string;
+  hypothesis?: string;
+  utm?: UTMConfiguration;
+  createdAt?: string;
+  updatedAt?: string;
+  version?: number;
+}
+
+export interface UTMConfiguration {
+  source: string;
+  medium: string;
+  campaign: string;
+  content?: string;
 }
 
 export interface Persona {
