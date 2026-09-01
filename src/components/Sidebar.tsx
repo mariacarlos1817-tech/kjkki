@@ -48,21 +48,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const selectedProduct = products.find(p => p.id === selectedProductId) || products[0];
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard Geral', icon: LayoutDashboard },
-    { id: 'produtos', label: 'Cursos & Produtos', icon: Package, badge: products.length },
-    { id: 'central-materiais', label: 'Central de Materiais', icon: FolderKanban },
-    { id: 'super-kit', label: 'Super Kit de Vendas', icon: Sparkles, highlight: true },
-    { id: 'descriptions', label: 'Description Studio', icon: FileText },
+    { id: 'dashboard', label: 'Visão geral', icon: LayoutDashboard },
+    { id: 'produtos', label: 'Cursos e ofertas', icon: Package, badge: products.length },
+    { id: 'meta-ads', label: 'Campanhas Meta', icon: Megaphone, highlight: true },
     { id: 'whatsapp', label: 'WhatsApp Sales', icon: MessageSquare },
-    { id: 'meta-ads', label: 'Facebook & Instagram', icon: Megaphone },
-    { id: 'sales-page', label: 'Página de Vendas', icon: Globe },
-    { id: 'portfolio', label: 'Portfólio Builder', icon: BookOpen },
-    { id: 'catalogo', label: 'Catálogos Interativos', icon: Grid },
-    { id: 'creative', label: 'Creative Studio & Editor', icon: Palette, highlight: true },
-    { id: 'copywriting', label: 'Copywriting & Frameworks', icon: PenTool },
-    { id: 'projetos', label: 'Biblioteca & Projetos', icon: FolderGit2 },
-    { id: 'brand-kit', label: 'Brand Kit & Institucional', icon: ShieldCheck },
-    { id: 'historico', label: 'Histórico de Gerações', icon: History }
+    { id: 'projetos', label: 'Biblioteca e aprovação', icon: FolderGit2 },
+    { id: 'historico', label: 'Histórico', icon: History }
   ];
 
   return (
