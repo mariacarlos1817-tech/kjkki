@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { initialProducts } from './data/initialProducts';
 import { initialBrandKit } from './data/initialBrandKit';
-import { Product, BrandKit, GeneratedMaterial, Project } from './types';
+import { Product, BrandKit, GeneratedMaterial, Project, Campaign } from './types';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
 import { PDFImportModal } from './components/PDFImportModal';
@@ -92,6 +92,17 @@ export default function App() {
     return [];
   });
 
+  const [campaigns, setCampaigns] = useState<Campaign[]>(() => {
+    const saved = localStorage.getItem('prime_campaigns');
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
   // Current view
   const [currentView, setCurrentView] = useState<string>('dashboard');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -121,6 +132,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('prime_history', JSON.stringify(history));
   }, [history]);
+
+  useEffect(() => {
+    localStorage.setItem('prime_campaigns', JSON.stringify(campaigns));
+  }, [campaigns]);
 
   // Collapsible Sidebar state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
@@ -183,6 +198,16 @@ export default function App() {
     setHistory(prev => [material, ...prev]);
   };
 
+  const handleSaveCampaign = (campaign: Campaign) => {
+    setCampaigns(prev => {
+      const existingIndex = prev.findIndex(item => item.id === campaign.id);
+      if (existingIndex < 0) return [campaign, ...prev];
+      const next = [...prev];
+      next[existingIndex] = campaign;
+      return next;
+    });
+  };
+
   // Toggle favorite for material
   const handleToggleFavoriteMaterial = (id: string) => {
     setSavedMaterials(prev => 
@@ -191,6 +216,11 @@ export default function App() {
     setHistory(prev => 
       prev.map(m => m.id === id ? { ...m, isFavorite: !m.isFavorite } : m)
     );
+  };
+
+  const handleUpdateMaterial = (id: string, changes: Partial<GeneratedMaterial>) => {
+    setSavedMaterials(prev => prev.map(material => material.id === id ? { ...material, ...changes } : material));
+    setHistory(prev => prev.map(material => material.id === id ? { ...material, ...changes } : material));
   };
 
   // Toggle favorite for project
@@ -320,6 +350,9 @@ export default function App() {
             <MetaContentStudioView
               selectedProduct={selectedProduct}
               brandKit={brandKit}
+              campaigns={campaigns}
+              onSaveCampaign={handleSaveCampaign}
+              onSaveMaterial={handleSaveMaterial}
             />
           )}
 
@@ -369,6 +402,7 @@ export default function App() {
               onToggleFavoriteProject={handleToggleFavoriteProject}
               onDeleteProject={handleDeleteProject}
               onDeleteMaterial={(id) => setSavedMaterials(prev => prev.filter(m => m.id !== id))}
+              onUpdateMaterial={handleUpdateMaterial}
               onNavigate={handleNavigate}
             />
           )}
