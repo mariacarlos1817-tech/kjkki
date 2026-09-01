@@ -38,11 +38,7 @@ export default function App() {
   });
 
   // Active product selection
-  const [selectedProductId, setSelectedProductId] = useState<string>(() => {
-    const saved = localStorage.getItem('prime_selected_product');
-    if (saved && initialProducts.some(p => p.id === saved)) return saved;
-    return initialProducts[0]?.id || '';
-  });
+  const [selectedProductId, setSelectedProductId] = useState<string>(() => localStorage.getItem('prime_selected_product') || initialProducts[0]?.id || '');
 
   // Brand kit state
   const [brandKit, setBrandKit] = useState<BrandKit>(() => {
@@ -141,6 +137,12 @@ export default function App() {
 
   // Selected product entity
   const selectedProduct = products.find(p => p.id === selectedProductId) || products[0] || initialProducts[0];
+
+  useEffect(() => {
+    if (selectedProduct && selectedProduct.id !== selectedProductId) {
+      setSelectedProductId(selectedProduct.id);
+    }
+  }, [selectedProduct, selectedProductId]);
 
   // Navigation helper
   const handleNavigate = (view: string) => {
